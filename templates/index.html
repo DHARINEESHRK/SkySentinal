@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#111b1a">
+    <title>SkySentinel | Airspace monitor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="SkySentinel home">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span>SKY<span class="brand-light">SENTINEL</span></span>
+        </a>
+        <div class="topbar-right">
+          <span class="system-label"><span class="pulse-dot"></span> LOCAL INFERENCE</span>
+          <span class="clock" id="clock">--:--:-- UTC</span>
+        </div>
+      </header>
+      <main>
+        <section class="heading-row">
+          <div><p class="eyebrow">AIRSPACE OBSERVATION <span> / </span> LIVE SYSTEM</p><h1>Detection <em>console</em></h1></div>
+          <div class="session-state"><span class="state-indicator" id="stateIndicator"></span><span id="stateText">STANDBY</span></div>
+        </section>
+        <section class="workspace">
+          <div class="monitor-column">
+            <div class="mode-bar">
+              <div class="mode-switch" role="tablist" aria-label="Video source">
+                <button class="mode-button active" id="webcamTab" role="tab" aria-selected="true" type="button">Browser webcam</button>
+                <button class="mode-button" id="cctvTab" role="tab" aria-selected="false" type="button">CCTV / RTSP</button>
+              </div>
+              <div class="feed-meta"><span class="live-mark" id="liveMark"></span><span id="feedLabel">NO ACTIVE FEED</span></div>
+            </div>
+            <div class="viewport" id="viewport">
+              <video id="webcamVideo" autoplay muted playsinline></video>
+              <img id="annotatedImage" alt="Live webcam frame with detector annotations">
+              <img id="cctvImage" alt="CCTV stream with detector annotations">
+              <div class="viewport-empty" id="emptyState">
+                <div class="radar" aria-hidden="true"><span></span><span></span><span></span><b></b></div>
+                <p class="empty-title">FEED OFFLINE</p><p class="empty-copy">Select a source to begin monitoring.</p>
+              </div>
+              <div class="viewport-corner corner-tl"></div><div class="viewport-corner corner-tr"></div>
+              <div class="viewport-corner corner-bl"></div><div class="viewport-corner corner-br"></div>
+              <div class="feed-overlay" id="feedOverlay"><span>SKYSENTINEL // AI VISION</span><span id="frameFps">-- FPS</span></div>
+            </div>
+            <div class="source-controls" id="webcamControls">
+              <div class="source-note"><span class="control-icon">◎</span><span>Camera access is granted by your browser for this device.</span></div>
+              <button class="primary-button" id="webcamButton" type="button"><span class="button-symbol">▶</span> START WEBCAM</button>
+            </div>
+            <div class="source-controls hidden" id="cctvControls">
+              <label class="stream-field"><span>AUTHORIZED CAMERA STREAM</span>
+                <input id="cctvUrl" type="password" autocomplete="off" spellcheck="false" placeholder="rtsp://camera-address:554/stream">
+                <button class="reveal-button" id="revealUrl" type="button" aria-label="Show stream URL" title="Show stream URL">◉</button>
+              </label>
+              <button class="primary-button" id="cctvButton" type="button"><span class="button-symbol">↗</span> CONNECT CCTV</button>
+            </div>
+          </div>
+          <aside class="side-panel">
+            <section class="panel-section detections-section">
+              <div class="section-heading"><span class="section-index">01</span><h2>Detections</h2><span class="count-badge" id="detectionCount">00</span></div>
+              <div class="detection-list" id="detectionList"><div class="no-detections"><span class="empty-cross">＋</span><span>No detections in current frame</span></div></div>
+            </section>
+          </aside>
+        </section>
+      </main>
+      <footer class="footer"><span>SKYSENTINEL <span class="footer-sep">/</span> AIRSPACE MONITORING</span><span>PROCESSING ON THIS MACHINE</span></footer>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </div>
+    <canvas id="frameCanvas" hidden></canvas>
+    <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+  </body>
+</html>
