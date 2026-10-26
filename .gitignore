@@ -9,3 +9,12 @@ runs/
 .env
 .env.*
 !.env.example
+*.sqlite
+*.sqlite3
+*.db
+evidence/
+exports/
+credentials/
+*service-account*.json
+*firebase-adminsdk*.json
+firmware/esp32/config.h

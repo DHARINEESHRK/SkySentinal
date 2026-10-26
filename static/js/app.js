@@ -14,6 +14,8 @@ let cctvTimer = null;
 let activeMode = "webcam";
 let busy = false;
 let toastTimer = null;
+let encounterOffset = 0;
+const encounterLimit = 10;
 
 function showToast(message) {
   const toast = document.querySelector("#toast");
@@ -64,8 +66,99 @@ function renderResults(data) {
   const detections = data.detections || [];
   document.querySelector("#detectionCount").textContent = String(detections.length).padStart(2, "0");
   document.querySelector("#detectionList").innerHTML = detections.length
-    ? detections.map((item) => `<div class="detection-item"><span class="detection-label">${escapeHtml(item.label)}</span><span class="detection-percent">${Math.round(item.confidence * 100)}%</span><div class="detection-bar"><span style="width:${Math.round(item.confidence * 100)}%"></span></div></div>`).join("")
+    ? detections.map((item) => `<div class="detection-item"><span class="detection-label">${escapeHtml(item.label)} · ${escapeHtml((item.model_sources || []).join(", "))}</span><span class="detection-percent">${Math.round(item.confidence * 100)}%</span><div class="detection-bar"><span style="width:${Math.round(item.confidence * 100)}%"></span></div><span class="detection-label">TRACK ${escapeHtml(item.tracking_id || "--")} · RISK ${escapeHtml(item.risk_score ?? "--")}</span></div>`).join("")
     : '<div class="no-detections"><span class="empty-cross">＋</span><span>No detections in current frame</span></div>';
+}
+
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, options);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || `Request failed (${response.status}).`);
+  return data;
+}
+
+function renderModelStatus(model, stateId, metaId) {
+  const state = document.querySelector(`#${stateId}`);
+  const meta = document.querySelector(`#${metaId}`);
+  if (!model) {
+    state.textContent = "NOT CONFIGURED";
+    meta.textContent = "No model configuration";
+    return;
+  }
+  state.textContent = !model.enabled ? "DISABLED" : model.available ? "WEIGHTS PRESENT" : "MISSING";
+  meta.textContent = `${model.path} · conf ${model.confidence_threshold} · ${model.supported_image_types.join("/")}`;
+  state.classList.toggle("risk-high", model.enabled && !model.available);
+}
+
+async function refreshSystemStatus() {
+  try {
+    const data = await fetchJson("/api/dashboard/status");
+    renderModelStatus(data.models.find((model) => model.role === "close_range"), "closeModelState", "closeModelMeta");
+    renderModelStatus(data.models.find((model) => model.role === "long_range"), "longModelState", "longModelMeta");
+    document.querySelector("#firebaseState").textContent = data.firebase.status.toUpperCase();
+    document.querySelector("#cloudQueueState").textContent =
+      `${data.cloud_sync.pending} pending · ${data.cloud_sync.failed} failed`;
+    document.querySelector("#esp32State").textContent =
+      data.esp32.online ? `ONLINE · ${data.esp32.device_id}` : "OFFLINE";
+    document.querySelector("#esp32SelfTestState").textContent =
+      String(data.esp32.sensor_states.startup_self_test || "unknown").replaceAll("_", " ").toUpperCase();
+    const outputs = data.esp32.sensor_states.output_states;
+    const outputSummary = outputs
+      ? ` · last reported outputs: buzzer ${outputs.buzzer ? "ON" : "OFF"}, red ${outputs.red_led ? "ON" : "OFF"}, green ${outputs.green_led ? "ON" : "OFF"}`
+      : "";
+    if (!data.hardware_commands.length) {
+      document.querySelector("#hardwareDelivery").textContent =
+        `No hardware command has been sent.${outputSummary}`;
+    } else {
+      const latestCommand = data.hardware_commands[0];
+      const delivery = latestCommand.simulation
+        ? "simulated; physical output not verified"
+        : latestCommand.status === "delivered"
+          ? "device acknowledged"
+          : latestCommand.status === "pending"
+            ? "pending; delivery not confirmed"
+            : latestCommand.status;
+      document.querySelector("#hardwareDelivery").textContent =
+        `Latest: ${latestCommand.command} · ${delivery}${outputSummary}`;
+    }
+    const states = data.sensors || {};
+    document.querySelector("#sensorStates").innerHTML = Object.entries(states)
+      .map(([sensor, info]) => `<div class="sensor-state"><span>${escapeHtml(sensor.replaceAll("_", " ").toUpperCase())}</span><strong class="${info.state === "active" ? "active" : ""}">${escapeHtml(info.state.toUpperCase())}</strong></div>`)
+      .join("");
+    document.querySelector("#simulateSensor").classList.toggle("hidden", !data.sensor_simulation);
+    renderAlerts(data.recent_alerts || []);
+  } catch (error) {
+    showToast(`System status unavailable: ${error.message}`);
+  }
+}
+
+function renderAlerts(items) {
+  document.querySelector("#recentAlerts").innerHTML = items.length
+    ? items.map((item) => `<div class="alert-item"><strong>${escapeHtml(item.risk_level.toUpperCase())} · ${escapeHtml(item.risk_score)}</strong><br>Encounter ${escapeHtml(item.encounter_id.slice(0, 8))}<br>${escapeHtml(new Date(item.timestamp).toLocaleString())}<br>Physical notification: ${escapeHtml(item.delivery_status.toUpperCase())} · ${item.acknowledged ? "ACKNOWLEDGED" : "UNACKNOWLEDGED"}</div>`).join("")
+    : '<p class="no-detections">No alerts recorded.</p>';
+}
+
+async function loadEncounters() {
+  try {
+    const level = document.querySelector("#riskFilter").value;
+    const query = new URLSearchParams({ limit: String(encounterLimit), offset: String(encounterOffset), include_resolved: "true" });
+    if (level) query.set("risk_level", level);
+    const data = await fetchJson(`/api/encounters?${query}`);
+    document.querySelector("#encounterCount").textContent = String(data.total).padStart(2, "0");
+    document.querySelector("#pageLabel").textContent = `PAGE ${Math.floor(encounterOffset / encounterLimit) + 1} · ${data.total} TOTAL`;
+    document.querySelector("#previousPage").disabled = encounterOffset <= 0;
+    document.querySelector("#nextPage").disabled = encounterOffset + encounterLimit >= data.total;
+    document.querySelector("#encounterList").innerHTML = data.items.length
+      ? data.items.map((item) => `<article class="encounter-card" data-id="${escapeHtml(item.encounter_id)}">
+          <div class="encounter-topline"><strong>DRONE · ${escapeHtml(item.encounter_id.slice(0, 8))}</strong><span class="risk-${escapeHtml(item.risk_level)}">${escapeHtml(item.risk_level.toUpperCase())} ${escapeHtml(item.risk_score)}</span></div>
+          <div class="encounter-meta"><span>${escapeHtml(item.source_id)} · track ${escapeHtml(item.tracking_id)}</span><span>${Math.round(item.latest_confidence * 100)}% · ${item.observation_count} obs</span></div>
+          <div class="encounter-meta"><span>${escapeHtml(new Date(item.last_seen).toLocaleString())}</span><span>${escapeHtml(item.model_sources.join(", "))}</span></div>
+          <div class="encounter-actions"><button class="small-button" data-action="details">DETAILS</button><button class="small-button" data-action="acknowledge" ${item.acknowledged ? "disabled" : ""}>ACK</button><button class="small-button" data-action="resolve" ${item.resolved ? "disabled" : ""}>RESOLVE</button></div>
+        </article>`).join("")
+      : '<p class="no-detections">No encounters match this filter.</p>';
+  } catch (error) {
+    showToast(`Encounter history unavailable: ${error.message}`);
+  }
 }
 
 async function startWebcam() {
@@ -125,6 +218,10 @@ async function sendWebcamFrame() {
     if (!response.ok) throw new Error(result.error || "Frame inference failed.");
     annotatedImage.src = result.image;
     renderResults(result);
+    if (result.inference_latency_ms) {
+      document.querySelector("#frameFps").textContent =
+        `${(1000 / result.inference_latency_ms).toFixed(1)} FPS · ${result.inference_latency_ms} ms`;
+    }
   } catch (error) {
     showToast(error.message);
     stopWebcam();
@@ -170,7 +267,7 @@ async function pollCctvStatus() {
         scores: data.scores,
         detections: data.detections,
       });
-      document.querySelector("#frameFps").textContent = `${data.fps} FPS`;
+      document.querySelector("#frameFps").textContent = `${data.fps} FPS · ${data.inference_latency_ms} ms`;
     }
     if (data.error) showToast(data.error);
     if (!data.active) stopCctv(false);
@@ -183,7 +280,10 @@ async function pollCctvStatus() {
 function stopCctv(notifyServer = true) {
   clearInterval(cctvTimer);
   cctvTimer = null;
-  if (notifyServer) fetch("/api/cctv/stop", { method: "POST" }).catch(() => {});
+  if (notifyServer) {
+    fetchJson("/api/cctv/stop", { method: "POST" })
+      .catch((error) => showToast(`Could not stop CCTV cleanly: ${error.message}`));
+  }
   cctvImage.removeAttribute("src");
   viewport.classList.remove("has-cctv");
   const button = document.querySelector("#cctvButton");
@@ -203,6 +303,78 @@ document.querySelector("#revealUrl").addEventListener("click", () => {
 document.querySelector("#cctvUrl").addEventListener("keydown", (event) => {
   if (event.key === "Enter") startCctv();
 });
+document.querySelector("#riskFilter").addEventListener("change", () => {
+  encounterOffset = 0;
+  loadEncounters();
+});
+document.querySelector("#previousPage").addEventListener("click", () => {
+  encounterOffset = Math.max(0, encounterOffset - encounterLimit);
+  loadEncounters();
+});
+document.querySelector("#nextPage").addEventListener("click", () => {
+  encounterOffset += encounterLimit;
+  loadEncounters();
+});
+document.querySelector("#encounterList").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  const card = button.closest("[data-id]");
+  const action = button.dataset.action;
+  try {
+    if (action === "details") {
+      const data = await fetchJson(`/api/encounters/${encodeURIComponent(card.dataset.id)}`);
+      const detail = document.createElement("div");
+      detail.className = "encounter-detail";
+      detail.textContent = `Risk reasons: ${data.encounter.risk_reasons.join(" ")} Missing: ${data.encounter.risk_missing.join(" ")} Risk history entries: ${data.risk_history.length}`;
+      const old = card.querySelector(".encounter-detail");
+      if (old) old.remove();
+      else card.append(detail);
+    } else {
+      await fetchJson(`/api/encounters/${encodeURIComponent(card.dataset.id)}/${action}`, { method: "POST" });
+      await Promise.all([loadEncounters(), refreshSystemStatus()]);
+    }
+  } catch (error) {
+    showToast(`Encounter action failed: ${error.message}`);
+  }
+});
+document.querySelectorAll("[data-command]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    try {
+      const result = await fetchJson("/api/hardware/alerts/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command: button.dataset.command }),
+      });
+      document.querySelector("#hardwareDelivery").textContent = result.delivered
+        ? `Command ${result.command} simulated; no physical output was verified.`
+        : `Command ${result.command} queued; physical delivery is not confirmed.`;
+      await refreshSystemStatus();
+    } catch (error) {
+      showToast(`Hardware command failed: ${error.message}`);
+    } finally {
+      button.disabled = false;
+    }
+  });
+});
+document.querySelector("#simulateSensor").addEventListener("click", async () => {
+  try {
+    await fetchJson("/api/sensors/simulate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sensor_type: "fc51_zone_1", state: "active" }),
+    });
+    await refreshSystemStatus();
+  } catch (error) {
+    showToast(`Sensor simulation failed: ${error.message}`);
+  }
+});
+setInterval(() => {
+  refreshSystemStatus();
+  loadEncounters();
+}, 5000);
+refreshSystemStatus();
+loadEncounters();
 setInterval(() => {
   document.querySelector("#clock").textContent = `${new Date().toISOString().slice(11, 19)} UTC`;
 }, 1000);

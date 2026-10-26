@@ -67,6 +67,50 @@
             </section>
           </aside>
         </section>
+        <section class="operations-grid" aria-label="System status and encounter history">
+          <section class="operations-panel">
+            <div class="section-heading"><span class="section-index">02</span><h2>System status</h2></div>
+            <div class="model-status-grid">
+              <div class="status-card"><span>Close-range model</span><strong id="closeModelState">CHECKING</strong><small id="closeModelMeta">best.pt</small></div>
+              <div class="status-card"><span>Long-range model</span><strong id="longModelState">CHECKING</strong><small id="longModelMeta">best1.pt</small></div>
+            </div>
+            <div class="system-row"><span>Firestore</span><strong id="firebaseState">CHECKING</strong></div>
+            <div class="system-row"><span>Cloud outbox</span><strong id="cloudQueueState">--</strong></div>
+            <div class="system-row"><span>ESP32</span><strong id="esp32State">OFFLINE</strong></div>
+            <div class="system-row"><span>ESP32 startup status</span><strong id="esp32SelfTestState">UNKNOWN</strong></div>
+            <div class="sensor-grid" id="sensorStates"></div>
+            <p class="sensor-disclaimer">FC-51 and PIR report nearby proximity/motion events only; they do not confirm drone detections.</p>
+            <div class="hardware-controls">
+              <button class="small-button" type="button" data-command="buzzer_brief">TEST BUZZER</button>
+              <button class="small-button" type="button" data-command="red_led_on">RED ALERT</button>
+              <button class="small-button" type="button" data-command="reset_outputs">RESET OUTPUTS</button>
+            </div>
+            <div class="hardware-delivery" id="hardwareDelivery" role="status">No hardware command sent.</div>
+            <button class="small-button hidden" id="simulateSensor" type="button">SIMULATE FC-51 ZONE 1</button>
+          </section>
+          <section class="operations-panel">
+            <div class="section-heading"><span class="section-index">03</span><h2>Encounter history</h2><span class="count-badge" id="encounterCount">00</span></div>
+            <div class="history-controls">
+              <label>Risk
+                <select id="riskFilter">
+                  <option value="">All</option><option value="low">Low</option>
+                  <option value="medium">Medium</option><option value="high">High</option>
+                </select>
+              </label>
+              <a class="small-button" href="/api/encounters/export.csv">EXPORT CSV</a>
+            </div>
+            <div class="encounter-list" id="encounterList"><p class="no-detections">No encounters recorded yet.</p></div>
+            <div class="history-pagination">
+              <button class="small-button" id="previousPage" type="button">PREVIOUS</button>
+              <span id="pageLabel">PAGE 1</span>
+              <button class="small-button" id="nextPage" type="button">NEXT</button>
+            </div>
+          </section>
+          <section class="operations-panel">
+            <div class="section-heading"><span class="section-index">04</span><h2>Recent alerts</h2></div>
+            <div id="recentAlerts"><p class="no-detections">No alerts recorded.</p></div>
+          </section>
+        </section>
       </main>
       <footer class="footer"><span>SKYSENTINEL <span class="footer-sep">/</span> AIRSPACE MONITORING</span><span>PROCESSING ON THIS MACHINE</span></footer>
       <div class="toast" id="toast" role="status" aria-live="polite"></div>
