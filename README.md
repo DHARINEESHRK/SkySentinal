@@ -34,7 +34,7 @@ The dashboard uses the existing root-level files:
 
 The model files report the `yolo11n.yaml` architecture and a single `drone` class. Both are run on eligible frames with independent confidence and image-size settings. The close/long range labels describe the intended application roles; they do not establish validated performance at any distance.
 
-The files under `Model/` were inspected and contain `drone`, `bird`, `airplane`, and `helicopter` classes. They are **not** used by this application's detection pipeline because the configured application is drone-only. The code also filters predictions to class label `drone` and refuses to load configured weights whose names are not exactly the single class `drone`.
+Only the two root-level drone-only weight files are retained for this application. The older multi-class weights formerly under `Model/` were removed because the dashboard is configured for drone-only detection. The code also filters predictions to class label `drone` and refuses to load configured weights whose names are not exactly the single class `drone`.
 
 The repository metadata does not establish thermal/infrared training or validation. Thermal/IR input is therefore **not enabled or claimed as supported**. Do not route thermal images to these models unless their training data, preprocessing, and performance have been separately verified and the supported image-type configuration is deliberately updated.
 

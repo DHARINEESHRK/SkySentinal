@@ -51,9 +51,6 @@ h1 { margin: 0; font: 600 41px/.95 var(--display); text-transform: uppercase; } 
 @media (max-width: 480px) { .heading-row { min-height: 92px; }.eyebrow { font-size: 8px; }.session-state { font-size: 9px; }.mode-button { font-size: 11px; }.mode-switch { gap: 15px; }.feed-meta { font-size: 8px; }.source-controls { align-items: stretch; flex-direction: column; padding: 12px 0; }.source-note { max-width: none; }.primary-button { justify-content: center; width: 100%; }.side-panel { grid-template-columns: 1fr; }.decision-section { grid-row: auto; border-right: 0; }.detection-section { border-bottom: 1px solid #303b37; }.footer span:last-child { text-align: right; }.system-row { min-height: 25px; } }
 .operations-grid { display: grid; grid-template-columns: minmax(250px,.9fr) minmax(380px,1.4fr) minmax(220px,.7fr); gap: 16px; margin: 18px 0 24px; }
 .operations-panel { min-width: 0; padding: 18px; background: rgba(24,32,30,.86); border: 1px solid #303b37; }
-.model-status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 12px; }
-.status-card { display: flex; flex-direction: column; gap: 5px; padding: 10px; border: 1px solid #35413b; background: #1b2521; }
-.status-card span,.status-card small { color: var(--muted); font: 9px var(--mono); }.status-card strong { color: var(--mint); font: 10px var(--mono); }.status-card small { overflow-wrap: anywhere; }
 .sensor-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 5px; margin-top: 9px; }
 .sensor-state { display: flex; justify-content: space-between; gap: 8px; padding: 6px; background: #202a26; color: #aab5af; font: 8px var(--mono); }.sensor-state strong { color: var(--amber); font-weight: 500; }.sensor-state strong.active { color: var(--red); }
 .sensor-disclaimer { color: var(--muted); font-size: 10px; line-height: 1.5; }

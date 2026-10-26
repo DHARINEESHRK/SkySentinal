@@ -15,6 +15,7 @@ let activeMode = "webcam";
 let busy = false;
 let toastTimer = null;
 let encounterOffset = 0;
+let encounterRequestId = 0;
 const encounterLimit = 10;
 
 function showToast(message) {
@@ -77,25 +78,9 @@ async function fetchJson(url, options = {}) {
   return data;
 }
 
-function renderModelStatus(model, stateId, metaId) {
-  const state = document.querySelector(`#${stateId}`);
-  const meta = document.querySelector(`#${metaId}`);
-  if (!model) {
-    state.textContent = "NOT CONFIGURED";
-    meta.textContent = "No model configuration";
-    return;
-  }
-  state.textContent = !model.enabled ? "DISABLED" : model.available ? "WEIGHTS PRESENT" : "MISSING";
-  meta.textContent = `${model.path} · conf ${model.confidence_threshold} · ${model.supported_image_types.join("/")}`;
-  state.classList.toggle("risk-high", model.enabled && !model.available);
-}
-
 async function refreshSystemStatus() {
   try {
     const data = await fetchJson("/api/dashboard/status");
-    renderModelStatus(data.models.find((model) => model.role === "close_range"), "closeModelState", "closeModelMeta");
-    renderModelStatus(data.models.find((model) => model.role === "long_range"), "longModelState", "longModelMeta");
-    document.querySelector("#firebaseState").textContent = data.firebase.status.toUpperCase();
     document.querySelector("#cloudQueueState").textContent =
       `${data.cloud_sync.pending} pending · ${data.cloud_sync.failed} failed`;
     document.querySelector("#esp32State").textContent =
@@ -127,8 +112,12 @@ async function refreshSystemStatus() {
       .join("");
     document.querySelector("#simulateSensor").classList.toggle("hidden", !data.sensor_simulation);
     renderAlerts(data.recent_alerts || []);
-  } catch (error) {
-    showToast(`System status unavailable: ${error.message}`);
+  } catch {
+    document.querySelector("#cloudQueueState").textContent = "UNAVAILABLE · RETRYING";
+    document.querySelector("#esp32State").textContent = "STATUS UNAVAILABLE";
+    document.querySelector("#esp32SelfTestState").textContent = "STATUS UNAVAILABLE";
+    document.querySelector("#sensorStates").innerHTML =
+      '<p class="sensor-disclaimer">System status unavailable. Retrying automatically.</p>';
   }
 }
 
@@ -139,11 +128,13 @@ function renderAlerts(items) {
 }
 
 async function loadEncounters() {
+  const requestId = ++encounterRequestId;
   try {
     const level = document.querySelector("#riskFilter").value;
     const query = new URLSearchParams({ limit: String(encounterLimit), offset: String(encounterOffset), include_resolved: "true" });
     if (level) query.set("risk_level", level);
     const data = await fetchJson(`/api/encounters?${query}`);
+    if (requestId !== encounterRequestId) return;
     document.querySelector("#encounterCount").textContent = String(data.total).padStart(2, "0");
     document.querySelector("#pageLabel").textContent = `PAGE ${Math.floor(encounterOffset / encounterLimit) + 1} · ${data.total} TOTAL`;
     document.querySelector("#previousPage").disabled = encounterOffset <= 0;
@@ -156,8 +147,11 @@ async function loadEncounters() {
           <div class="encounter-actions"><button class="small-button" data-action="details">DETAILS</button><button class="small-button" data-action="acknowledge" ${item.acknowledged ? "disabled" : ""}>ACK</button><button class="small-button" data-action="resolve" ${item.resolved ? "disabled" : ""}>RESOLVE</button></div>
         </article>`).join("")
       : '<p class="no-detections">No encounters match this filter.</p>';
-  } catch (error) {
-    showToast(`Encounter history unavailable: ${error.message}`);
+  } catch {
+    if (requestId === encounterRequestId) {
+      document.querySelector("#encounterList").innerHTML =
+        '<p class="no-detections">Encounter history unavailable. Retrying automatically.</p>';
+    }
   }
 }
 
